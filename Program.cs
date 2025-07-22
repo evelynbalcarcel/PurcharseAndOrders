@@ -1,32 +1,39 @@
-//Program.cs
 using BlazorPurchaseOrders.Data;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization; // Asegï¿½rate de que este using estï¿½ presente
+using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI;
-using Microsoft.EntityFrameworkCore; 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Syncfusion.Blazor;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
-// Agrega tu Connection String aquí, usando el nombre correcto de tu base de datos
+// Agrega tu Connection String aquï¿½, usando el nombre correcto de tu base de datos
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// Configuración de Identity para autenticación
-builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+// Configuraciï¿½n de Identity para autenticaciï¿½n
+builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = false)
+     .AddRoles<IdentityRole>()// es para usar los roles 
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
-builder.Services.AddSyncfusionBlazor(); // Asegúrate de que tienes el paquete NuGet Syncfusion.Blazor instalado
+// ****** INICIO DE LAS CORRECCIONES EN builder.Services ******
+// Agrega esto para Blazor Server Authentication
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+builder.Services.AddAuthorization(); // Aï¿½ade los servicios de autorizaciï¿½n
+// ****** FIN DE LAS CORRECCIONES EN builder.Services ******
+
+builder.Services.AddSyncfusionBlazor();
 
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSingleton<WeatherForecastService>();
-
+builder.Services.AddSingleton<WeatherForecastService>(); // Considera si realmente lo necesitas para tu app
 
 var sqlConnectionConfiguration = new SqlConnectionConfiguration(builder.Configuration.GetConnectionString("SqlDBContext"));
 builder.Services.AddSingleton(sqlConnectionConfiguration);
@@ -37,7 +44,6 @@ builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ITaxService, TaxService>();
 
-
 var app = builder.Build();
 
 //Register Syncfusion License
@@ -47,15 +53,17 @@ Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense("Mzk1MjUzMEAzMjMz
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
-
 app.UseStaticFiles();
-
 app.UseRouting();
+
+// ****** AGREGADO PARA LA AUTENTIFICACION ******
+app.UseAuthentication();
+app.UseAuthorization();
+// ****** FIN ******
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");

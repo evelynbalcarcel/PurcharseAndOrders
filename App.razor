@@ -1,12 +1,50 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <PageTitle>Not found</PageTitle>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <p role="alert">Sorry, there's nothing at this address.</p>
-        </LayoutView>
-    </NotFound>
-</Router>
+﻿@* App.razor *@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @* Esto se mostrará si el usuario NO está autenticado o NO autorizado para la página *@
+                    @if (!context.User.Identity?.IsAuthenticated ?? true) // Si el usuario NO está autenticado
+                    {
+                        <RedirectToLogin /> @* Componente que redirige a la página de login de Identity *@
+                    }
+                    else // Si el usuario está autenticado pero NO tiene los roles/políticas para acceder a la página
+                    {
+                        <p role="alert">No está autorizado para ver este contenido.</p>
+                    }
+                </NotAuthorized>
+                <Authorizing>
+                    @* Opcional: Contenido mientras se está comprobando el estado de autenticación *@
+                    <p>Cargando autenticación...</p>
+                </Authorizing>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Sorry, there's nothing at this address.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
+
+@* Define el componente RedirectToLogin.razor en tu carpeta Shared o en la raíz de tu proyecto *@
+@code {
+    // Este es un componente simple que redirige al usuario a la página de inicio de sesión de Identity.
+    // Asegúrate de que este código esté en un archivo RedirectToLogin.razor dentro de tu proyecto.
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous] // Permite el acceso sin autenticación
+    public class RedirectToLogin : Microsoft.AspNetCore.Components.ComponentBase
+    {
+        [Microsoft.AspNetCore.Components.Inject]
+        public Microsoft.AspNetCore.Components.NavigationManager Navigation { get; set; }
+
+        protected override void OnInitialized()
+        {
+            // Redirige al usuario a la página de login de Identity
+            // El 'returnUrl' asegura que después del login, el usuario vuelva a la página que intentó acceder.
+            Navigation.NavigateTo($"Identity/Account/Login?returnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+        }
+    }
+}
