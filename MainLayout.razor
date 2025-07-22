@@ -1,0 +1,49 @@
+﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IJSRuntime JSRuntime
+
+<PageTitle>BlazorPurchaseOrders</PageTitle>
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <AuthorizeView>
+                <Authorized>
+                    Hello, @context.User.Identity?.Name!
+                    <button type="button" class="nav-link btn btn-link" @onclick="BeginLogout">Log out</button>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="Identity/Account/Register">Register</a>
+                    <a href="Identity/Account/Login">Log in</a>
+                </NotAuthorized>
+            </AuthorizeView>
+
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    // Método C# que se ejecuta cuando se hace clic en el botón "Log out"
+    private async Task BeginLogout()
+    {
+        // Llama a una función de JavaScript para enviar el formulario oculto en _Host.cshtml
+        await JSRuntime.InvokeVoidAsync("document.getElementById", "logoutForm")
+                       .AsTask()
+                       .ContinueWith(t =>
+                       {
+                           // Una vez que se obtiene el elemento, envíalo.
+                           // Esto puede requerir una pequeña función JS si InvokeVoidAsync no puede encadenar .submit()
+                           // de esta manera directamente. Lo más seguro es una función JS dedicada.
+                           // Mejor, usamos una función JS que encapsule todo:
+                           return JSRuntime.InvokeVoidAsync("submitLogoutForm");
+                       });
+    }
+}

@@ -1,0 +1,276 @@
+﻿@page "/tax"
+
+@using BlazorPurchaseOrders.Data
+@inject ITaxService TaxService
+@using Syncfusion.Blazor.Navigations
+
+@attribute [Authorize(Roles = "Admin, Manager")]
+
+<h3>Tax Rates</h3>
+<br />
+
+<SfGrid DataSource="@tax"
+        Toolbar="@Toolbaritems">
+    <GridColumns>
+        <GridColumn Field="@nameof(Tax.TaxDescription)"
+                    HeaderText="Description"
+                    TextAlign="TextAlign.Left"
+                    Width="60">
+            <GridColumn Field="@nameof(Tax.TaxRate)"
+                        HeaderText="Rate %"
+                        TextAlign="TextAlign.Right"
+                        Format="p2"
+                        Width="40">
+            </GridColumn>
+        </GridColumn>
+    </GridColumns>
+    <GridEvents RowSelected="RowSelectHandler" OnToolbarClick="ToolbarClickHandler" TValue="Tax" ></GridEvents>
+</SfGrid>
+
+<SfDialog @ref="DialogAddEditTax"
+          IsModal="true"
+          Width="500px"
+          ShowCloseIcon="true"
+          Visible="@DialogVisible"
+          VisibleChanged="OnVisibleChanged">
+
+    <DialogTemplates>
+        <Header> @HeaderText </Header>
+    </DialogTemplates>
+    <EditForm Model="@addeditTax" OnValidSubmit="@TaxSave">
+        <div>
+            <SfTextBox Enabled="true" Placeholder="Description"
+                       FloatLabelType="@FloatLabelType.Always"
+                       @bind-Value="addeditTax.TaxDescription"></SfTextBox>
+            <ValidationMessage For="@(() => addeditTax.TaxDescription)" />
+            <SfNumericTextBox Enabled="true" Placeholder="Tax Rate" Width="50"
+                              Format="p2"
+                              FloatLabelType="@FloatLabelType.Always"
+                              @bind-Value="addeditTax.TaxRate"></SfNumericTextBox>
+
+            <ValidationMessage For="@(() => addeditTax.TaxRate)" />
+        </div>
+        <br /><br />
+        <div class="e-footer-content">
+            <div class="button-container">
+                <button type="submit" class="e-btn e-normal e-primary">Save</button>
+                <button type="button" class="e-btn e-normal" @onclick="@CloseDialog">Cancel</button>
+            </div>
+        </div>
+    </EditForm>
+</SfDialog>
+
+<SfDialog @ref="DialogDeleteTax"
+          IsModal="true"
+          Width="500px"
+          ShowCloseIcon="true"
+          Visible="@DialogDeleteVisible"
+          VisibleChanged="OnDeleteVisibleChanged">
+
+    <DialogTemplates>
+        <Header> Confirm Delete </Header>
+        <Content>
+            <SfTextBox Enabled="false" Placeholder="Description"
+                       FloatLabelType="@FloatLabelType.Always"
+                       @bind-Value="addeditTax.TaxDescription"></SfTextBox>
+            <SfNumericTextBox Enabled="false" Placeholder="Tax Rate" Width="50"
+                              Format="p2"
+                              FloatLabelType="@FloatLabelType.Always"
+                              @bind-Value="addeditTax.TaxRate"></SfNumericTextBox>
+            <br />
+            <br />
+            <span class="text-danger">Please confirm that you want to delete this record</span>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Delete" IsPrimary="true" OnClick="@ConfirmDeleteYes" />
+        <DialogButton Content="Cancel" IsPrimary="false" OnClick="@ConfirmDeleteNo" />
+    </DialogButtons>
+</SfDialog>
+
+<WarningPage @ref="Warning" WarningHeaderMessage="@WarningHeaderMessage" WarningContentMessage="@WarningContentMessage" />
+
+
+@code {
+
+    public int SelectedTaxId { get; set; } = 0;
+    WarningPage Warning;
+    string WarningHeaderMessage = "";
+    string WarningContentMessage = "";
+
+
+    bool DialogVisible = false;
+    bool DialogDeleteVisible = false;
+
+
+    IEnumerable<Tax> tax;
+    private List<ItemModel> Toolbaritems = new List<ItemModel>();
+
+    SfDialog DialogAddEditTax;
+    SfDialog DialogDeleteTax;
+
+    Tax addeditTax = new Tax();
+    string HeaderText = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        //Populate the list of VAT objects from the VAT table.
+        tax = await TaxService.TaxList();
+
+        Toolbaritems.Add(new ItemModel() { Text = "Add", TooltipText = "Add a new Tax Rate", PrefixIcon = "e-add" });
+        Toolbaritems.Add(new ItemModel() { Text = "Edit", TooltipText = "Edit selected Tax Rate", PrefixIcon = "e-edit" });
+        Toolbaritems.Add(new ItemModel() { Text = "Delete", TooltipText = "Delete selected Tax Rate", PrefixIcon = "e-delete" });
+    }
+
+    public async Task ToolbarClickHandler(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        if (args.Item.Text == "Add")
+        {
+            //Code for adding goes here
+            addeditTax = new Tax();             // Ensures a blank form when adding
+            HeaderText = "Add Tax Rate";
+            DialogVisible = true;
+
+        }
+        if (args.Item.Text == "Edit")
+        {
+            if (SelectedTaxId == 0)
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please select a Tax Rate from the grid.";
+                Warning.OpenDialog(); // 
+
+            }
+            else
+            {
+                // Cargar los datos del impuesto a editar
+                HeaderText = "Edit Tax Rate";
+                addeditTax = await TaxService.Tax_GetOne(SelectedTaxId);
+
+                // Mostrar el diálogo
+                DialogVisible = true;
+            }
+        }
+
+        if (args.Item.Text == "Delete")
+        {
+            if (SelectedTaxId == 0)
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please select a Tax Rate from the grid.";
+                Warning.OpenDialog();
+            }
+            else
+            {
+                HeaderText = "Delete Tax Rate";
+                addeditTax = await TaxService.Tax_GetOne(SelectedTaxId);
+                DialogDeleteVisible = true; 
+            }
+        }
+
+    }
+
+    protected async Task TaxSave()
+    {
+        if (addeditTax.TaxID == 0)
+        {
+            int Success = await TaxService.TaxInsert(addeditTax.TaxDescription, addeditTax.TaxRate);
+            if (Success != 0)
+            {
+                //Tax Rate already exists
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "This Tax Description already exists; it cannot be added again.";
+                Warning.OpenDialog();
+                // Data is left in the dialog so the user can see the problem.
+            }
+            else
+            {
+                // Clears the dialog and is ready for another entry
+                // User must specifically close or cancel the dialog
+                addeditTax = new Tax();
+            }
+        }
+        else
+        {
+            // Item is being edited
+            int Success = await TaxService.TaxUpdate(addeditTax.TaxDescription, addeditTax.TaxRate, SelectedTaxId, addeditTax.TaxIsArchived);
+            if (Success != 0)
+            {
+                //Tax Rate already exists
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "This Tax Description already exists; it cannot be added again.";
+                Warning.OpenDialog();
+            }
+            else
+            {
+                DialogVisible = false;
+                this.StateHasChanged();
+                addeditTax = new Tax();
+                SelectedTaxId = 0;
+            }
+        }
+
+        //Always refresh datagrid
+        tax = await TaxService.TaxList();
+        StateHasChanged();
+    }
+
+
+    private void CloseDialog()
+    {
+        DialogVisible = false;
+
+    }
+
+    private void OnVisibleChanged(bool value)
+    {
+        DialogVisible = value;
+    }
+
+    public void RowSelectHandler(RowSelectEventArgs<Tax> args)
+    {
+        //{args.Data} returns the current selected records.
+        SelectedTaxId = args.Data.TaxID;
+    }
+    private void OnDeleteVisibleChanged(bool value)
+    {
+        DialogDeleteVisible = value;
+    }
+
+    public void ConfirmDeleteNo()
+    {
+        DialogDeleteVisible = false;
+        SelectedTaxId = 0;
+        addeditTax = new Tax();
+    }
+
+    public async Task ConfirmDeleteYes()
+    {
+        // Aquí estás haciendo un "soft delete" archivando el impuesto
+        int Success = await TaxService.TaxUpdate(
+            addeditTax.TaxDescription,
+            addeditTax.TaxRate,
+            SelectedTaxId,
+            addeditTax.TaxIsArchived = true
+        );
+
+        if (Success != 0)
+        {
+            //Tax Rate already exists
+            WarningHeaderMessage = "Warning!";
+            WarningContentMessage = "Se ha preducido un error desconocido - El registro no se ha eliminado!";
+            Warning.OpenDialog();
+        }
+        else
+        {
+            DialogDeleteVisible = false;
+            tax = await TaxService.TaxList();
+            addeditTax = new Tax();
+            SelectedTaxId = 0;
+            StateHasChanged();
+        }
+
+
+    }
+
+}

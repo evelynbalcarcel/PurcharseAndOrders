@@ -1,0 +1,807 @@
+﻿@page "/purchaseorder/{POHeaderID:int}"
+@using BlazorPurchaseOrders.Data
+
+@inject NavigationManager NavigationManager
+@inject ISupplierService SupplierService
+@inject IPOHeaderService POHeaderService
+@inject IProductService ProductService
+@inject ITaxService TaxService
+@inject IPOLineService POLineService
+
+
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@using System
+@using System.Collections.Generic
+
+
+<h3>@pagetitle</h3>
+
+<EditForm Model="@orderaddedit" OnValidSubmit="@OrderSave">
+    <DataAnnotationsValidator />
+    <div class="grid-container">
+        <div class="grid-child left-column">
+            <SfDropDownList DataSource="@supplier"
+                            TItem="Supplier"
+                            TValue="int"
+                            Text="SupplierID"
+                            @bind-Value="orderaddedit.POHeaderSupplierID"
+                            FloatLabelType="@FloatLabelType.Auto"
+                            Placeholder="Select a Supplier"
+                            Enabled="@supplierEnabled">
+                <DropDownListFieldSettings Text="SupplierName" Value="SupplierID"></DropDownListFieldSettings>
+                <DropDownListEvents TItem="Supplier" TValue="int" ValueChange="OnChangeSupplier"></DropDownListEvents>
+            </SfDropDownList>
+
+            <SfTextBox Enabled="true" Placeholder="Address"
+                       FloatLabelType="@FloatLabelType.Always"
+                       @bind-Value="orderaddedit.POHeaderSupplierAddress1"></SfTextBox>
+            <ValidationMessage For="@(() => orderaddedit.POHeaderSupplierAddress1)" />
+
+
+            <SfTextBox Enabled="true" Placeholder=""
+                       FloatLabelType="@FloatLabelType.Never"
+                       @bind-Value="orderaddedit.POHeaderSupplierAddress2"></SfTextBox>
+            <ValidationMessage For="@(() => orderaddedit.POHeaderSupplierAddress2)" />
+
+
+            <SfTextBox Enabled="true" Placeholder=""
+                       FloatLabelType="@FloatLabelType.Never"
+                       @bind-Value="orderaddedit.POHeaderSupplierAddress3"></SfTextBox>
+            <ValidationMessage For="@(() => orderaddedit.POHeaderSupplierAddress3)" />
+
+
+            <SfTextBox Enabled="true" Placeholder="Post Code"
+                       FloatLabelType="@FloatLabelType.Never"
+                       @bind-Value="orderaddedit.POHeaderSupplierPostCode"></SfTextBox>
+            <ValidationMessage For="@(() => orderaddedit.POHeaderSupplierPostCode)" />
+
+            <SfTextBox Enabled="true" Placeholder="Email"
+                       FloatLabelType="@FloatLabelType.Auto"
+                       @bind-Value="orderaddedit.POHeaderSupplierEmail"></SfTextBox>
+            <ValidationMessage For="@(() => orderaddedit.POHeaderSupplierEmail)" />
+        </div>
+        <div class="grid-child right-column">
+            <SfNumericTextBox Enabled="false" Placeholder="Order No"
+                              FloatLabelType="@FloatLabelType.Always"
+                              ShowSpinButton="false"
+                              @bind-Value="orderaddedit.POHeaderOrderNumber"></SfNumericTextBox>
+
+            <SfDatePicker TValue="DateTime"
+                          Placeholder='Order Date'
+                          FloatLabelType="@FloatLabelType.Auto"
+                          @bind-Value="orderaddedit.POHeaderOrderDate"></SfDatePicker>
+
+            <SfTextBox Enabled="false" Placeholder="Requested by"
+                       FloatLabelType="@FloatLabelType.Always"
+                       @bind-Value="orderaddedit.POHeaderRequestedBy"></SfTextBox>
+        </div>
+    </div>
+    <br />
+    <SfGrid @ref="OrderLinesGrid"
+            DataSource="@orderLines"
+            Toolbar="@Toolbaritems"
+            AllowResizing="true">
+        <GridColumns>
+            <GridColumn Field="@nameof(POLine.POLineProductCode)"
+                        HeaderText="Product"
+                        TextAlign="@TextAlign.Left"
+                        Width="20">
+            </GridColumn>
+            <GridColumn Field="@nameof(POLine.POLineProductDescription)"
+                        HeaderText="Description"
+                        TextAlign="@TextAlign.Left"
+                        Width="30">
+            </GridColumn>
+            <GridColumn Field="@nameof(POLine.POLineProductQuantity)"
+                        HeaderText="Quantity"
+                        TextAlign="@TextAlign.Right"
+                        Format="n0"
+                        Width="10">
+            </GridColumn>
+            <GridColumn Field="@nameof(POLine.POLineProductUnitPrice)"
+                        HeaderText="Unit Price"
+                        TextAlign="@TextAlign.Right"
+                        Format="C2"
+                        Width="10">
+            </GridColumn>
+            <GridColumn Field="@nameof(POLine.POLineNetPrice)"
+                        HeaderText="Net Price"
+                        TextAlign="@TextAlign.Right"
+                        Format="C2"
+                        Width="10">
+            </GridColumn>
+            <GridColumn Field="@nameof(POLine.POLineTaxRate)"
+                        HeaderText="Tax Rate"
+                        TextAlign="@TextAlign.Right"
+                        Format="p2"
+                        Width="10">
+            </GridColumn>
+            <GridColumn Field="@nameof(POLine.POLineTaxAmount)"
+                        HeaderText="Tax"
+                        TextAlign="@TextAlign.Right"
+                        Format="C2"
+                        Width="10">
+            </GridColumn>
+            <GridColumn Field="@nameof(POLine.POLineGrossPrice)"
+                        HeaderText="Total"
+                        TextAlign="@TextAlign.Right"
+                        Format="C2"
+                        Width="10">
+            </GridColumn>
+        </GridColumns>
+
+        <GridAggregates>
+            <GridAggregate>
+                <GridAggregateColumns>
+                    <GridAggregateColumn Field=@nameof(POLine.POLineNetPrice) Type="AggregateType.Sum" Format="C2">
+                        <FooterTemplate Context="NetContext">
+                            @{
+                                var aggregate = NetContext as AggregateTemplateContext;
+                                <div>
+                                    <p>@aggregate.Sum</p>
+                                </div>
+                            }
+                        </FooterTemplate>
+                    </GridAggregateColumn>
+
+                    <GridAggregateColumn Field=@nameof(POLine.POLineTaxAmount) Type="AggregateType.Sum" Format="C2">
+                        <FooterTemplate Context="TaxContext">
+                            @{
+                                var aggregate = TaxContext as AggregateTemplateContext;
+                                <div>
+                                    <p>@aggregate.Sum</p>
+                                </div>
+                            }
+                        </FooterTemplate>
+                    </GridAggregateColumn>
+
+                    <GridAggregateColumn Field=@nameof(POLine.POLineGrossPrice) Type="AggregateType.Sum" Format="C2">
+                        <FooterTemplate Context="GrossContext">
+                            @{
+                                var aggregate = GrossContext as AggregateTemplateContext;
+                                <div>
+                                    <p>@aggregate.Sum</p>
+                                </div>
+                            }
+                        </FooterTemplate>
+                    </GridAggregateColumn>
+                </GridAggregateColumns>
+            </GridAggregate>
+
+        </GridAggregates>
+
+        <GridEvents RowSelected="RowSelectHandler"  OnToolbarClick="ToolbarClickHandler" TValue="POLine"></GridEvents>
+    </SfGrid>
+    <br />
+
+    <div class="e-footer-content" style="text-align: right; width: 100%;">
+
+        <div class="button-container">
+            <button type="submit" class="e-btn e-normal e-primary">Save</button>
+            <button type="button" class="e-btn e-normal" @onclick="@Cancel">Cancel</button>
+        </div>
+    </div>
+</EditForm>
+
+<SfDialog @ref="DialogAddEditOrderLine" IsModal="true" Width="600px" ShowCloseIcon="true" @bind-Visible="@IsOrderLineDialogVisible">
+    <DialogTemplates>
+        <Header> @dialogHeaderText </Header>
+    </DialogTemplates>
+    <EditForm Model="@addeditOrderLine" OnValidSubmit="@OrderLineSave">
+        <DataAnnotationsValidator />
+        <div class=flex-container>
+            <SfDropDownList DataSource="@product"
+                            TItem="Product"
+                            TValue="int"
+                            Text="ProductID"
+                            @bind-Value="addeditOrderLine.POLineProductID"
+                            FloatLabelType="@FloatLabelType.Always"
+                            Placeholder="Select a Product"
+                            Enabled="true">
+                <DropDownListTemplates TItem="Product">
+                    <HeaderTemplate>
+                        <span class='head'>
+                            <span class='productcode'>Code</span>
+                            <span class='description'>Description</span>
+                        </span>
+                    </HeaderTemplate>
+                    <ItemTemplate Context="contextName">
+                        <span class='item'>
+                            <span class='productcode'>@((contextName as Product).ProductCode)</span>
+                            <span class='description'>@((contextName as Product).ProductDescription)</span>
+                        </span>
+                    </ItemTemplate>
+                </DropDownListTemplates>
+
+
+                <DropDownListFieldSettings Text="ProductCode" Value="ProductID"></DropDownListFieldSettings>
+                <DropDownListEvents TItem="Product" TValue="int" OnValueSelect="OnChangeProduct"></DropDownListEvents>
+            </SfDropDownList>
+        </div>
+        <div class=flex-container>
+            
+            <SfTextBox Enabled="true" Placeholder="Product Description"
+                       FloatLabelType="@FloatLabelType.Always"
+                       @bind-Value="addeditOrderLine.POLineProductDescription"></SfTextBox>
+        </div>
+        <div class=flex-container>
+            <ValidationMessage For="@(() => addeditOrderLine.POLineProductDescription)" />
+        </div>
+
+        <div class=flex-container>
+            <SfNumericTextBox Enabled="true" Placeholder="Quantity"
+                              FloatLabelType="@FloatLabelType.Always"
+                              ShowSpinButton="false"
+                              Format="n0"
+                              Decimals="0"
+                              ValidateDecimalOnType="true"
+                              CssClass="e-style"
+                              @bind-Value="addeditOrderLine.POLineProductQuantity"
+                              @onfocusout='@POLineCalc'>
+            </SfNumericTextBox>
+
+
+            <SfNumericTextBox Enabled="true" Placeholder="Unit Price"
+                              FloatLabelType="@FloatLabelType.Always"
+                              ShowSpinButton="false"
+                              Format="c2"
+                              Decimals="2"
+                              ValidateDecimalOnType="true"
+                              CssClass="e-style"
+                              @bind-Value="addeditOrderLine.POLineProductUnitPrice"
+                              @onfocusout='@POLineCalc'>
+            </SfNumericTextBox>
+
+            <SfNumericTextBox Enabled="false" Placeholder="Net Price"
+                              FloatLabelType="@FloatLabelType.Always"
+                              ShowSpinButton="false"
+                              Format="c2"
+                              EnableRtl="true"
+                              @bind-Value="addeditOrderLine.POLineNetPrice">
+            </SfNumericTextBox>
+        </div>
+        <div class=flex-container>
+            <SfDropDownList DataSource="@tax"
+                            TItem="Tax"
+                            TValue="int"
+                            Text="TaxID"
+                            @bind-Value="addeditOrderLine.POLineTaxID"
+                            FloatLabelType="@FloatLabelType.Always"
+                            Placeholder="Tax Rate"
+                            Enabled="true">
+                <DropDownListFieldSettings Text="TaxDescription" Value="TaxID"></DropDownListFieldSettings>
+                <DropDownListEvents TItem="Tax" TValue="int" OnValueSelect="OnChangeTax"></DropDownListEvents>
+            </SfDropDownList>
+
+            <SfNumericTextBox Enabled="false" Placeholder="Tax Rate %"
+                              FloatLabelType="@FloatLabelType.Always"
+                              ShowSpinButton="false"
+                              Format="p2"
+                              EnableRtl="true"
+                              @bind-Value="addeditOrderLine.POLineTaxRate">
+            </SfNumericTextBox>
+
+            <SfNumericTextBox Enabled="false" Placeholder="Tax Amount"
+                              FloatLabelType="@FloatLabelType.Always"
+                              ShowSpinButton="false"
+                              Format="c2"
+                              EnableRtl="true"
+                              @bind-Value="addeditOrderLine.POLineTaxAmount">
+            </SfNumericTextBox>
+        </div>
+        <div class=flex-container>
+            <SfNumericTextBox Enabled="false" Placeholder="Total Price"
+                              FloatLabelType="@FloatLabelType.Always"
+                              ShowSpinButton="false"
+                              Format="c2"
+                              EnableRtl="true"
+                              @bind-Value="addeditOrderLine.POLineGrossPrice">
+            </SfNumericTextBox>
+        </div>
+
+        <br />
+        <div class="e-footer-content" style="text-align: right; width: 100%;">
+
+            <div class="button-container">
+                <button type="submit" class="e-btn e-normal e-primary">Save</button>
+                <button type="button" class="e-btn e-normal" @onclick="@CloseDialog">Cancel</button>
+            </div>
+        </div>
+    </EditForm>
+</SfDialog>
+
+<ConfirmPage @ref="ConfirmDeletion" ConfirmHeaderMessage="@ConfirmHeaderMessage" ConfirmContentMessage="@ConfirmContentMessage" ConfirmationChanged="ConfirmDelete" />
+
+
+<WarningPage @ref="Warning" WarningHeaderMessage="@WarningHeaderMessage" 
+ WarningContentMessage="@WarningContentMessage" />
+
+
+<ConfirmPage @ref="ConfirmSaveOrder" ConfirmHeaderMessage="@ConfirmHeaderMessage" ConfirmContentMessage="@ConfirmContentMessage" ConfirmationChanged="OrderSaveProcess" />
+
+<style>
+    .grid-container {
+        display: grid;
+        max-width: 900px; /* Maximum width of the whole container - in this case both columns */
+        grid-template-columns: 1fr 1fr; /* Relative width of each column (1fr 1fr is equivalent to, say, 33fr 33fr */
+        grid-gap: 75px; /* size of the gap between columns */
+    }
+
+    .flex-container {
+        display: flex;
+        flex-direction: row; /* Causes tab to move along row and then onto following row */
+        flex-direction: row; /* Causes tab to move along row and then onto following row */
+        justify-content: space-evenly; /* Equal space left and right margin and between elements */
+        margin: 10px; /* This appears to be vertical margin between rows */
+        column-gap: 10px; /* Tgap betwen columns */
+    }
+
+    .e-numeric.e-style .e-control.e-numerictextbox {
+        text-align: right;
+        padding: 0px 5px 0px 0px;
+    }
+
+    .head, .item {
+        display: table;
+        width: 100%;
+        margin: auto;
+        text-align: left;
+    }
+
+    .head {
+        height: 30px;
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    .productcode {
+        display: table-cell;
+        vertical-align: middle;
+        text-align: left;
+        width: 25%;
+    }
+
+    .description {
+        display: table-cell;
+        vertical-align: middle;
+        text-align: left;
+        width: 75%;
+    }
+
+    .head .productcode {
+        text-indent: 17px;
+    }
+
+    .head .description {
+        text-indent: 14px;
+    }
+</style>
+
+
+@code {
+
+    WarningPage Warning;
+    string WarningHeaderMessage = "";
+    string WarningContentMessage = "";
+    string dialogHeaderText = "";
+
+    // Esta es la nueva propiedad para controlar la visibilidad COMENTE ESTO
+    bool IsOrderLineDialogVisible { get; set; } = false; // Inicialmente oculto
+
+
+    //bool IsOrderLineDialogVisible { get; set; } = false;
+
+    bool DialogDeleteVisible = false;
+
+    POHeader orderaddedit = new POHeader();
+    IEnumerable<Supplier> supplier;
+    IEnumerable<Product> product;
+    IEnumerable<Tax> tax;
+
+    IEnumerable<POLine> orderLinesByPOHeader;
+
+    string pagetitle = "";
+
+    private string UserName;
+
+    SfGrid<POLine> OrderLinesGrid;
+    public List<POLine> orderLines = new List<POLine>();
+    private List<ItemModel> Toolbaritems = new List<ItemModel>();
+
+    private List<int> OrderLinesToBeDeleted = new List<int>();
+
+    SfDialog DialogAddEditOrderLine;
+
+
+    public POLine addeditOrderLine = new POLine();
+
+    public bool supplierEnabled { get; set; } = true;
+
+    private int tmpPOLineID { get; set; } = 0;
+    private int selectedPOLineID { get; set; } = 0;
+
+    ConfirmPage ConfirmDeletion;
+    ConfirmPage ConfirmSaveOrder;
+    string ConfirmHeaderMessage = "";
+    string ConfirmContentMessage = "";
+    public bool ConfirmationChanged { get; set; } = false;
+
+
+    [Parameter]
+    public int POHeaderID { get; set; }
+
+    //Executes on page open, sets headings and gets data in the case of edit
+    protected override async Task OnInitializedAsync()
+    {
+        supplier = await SupplierService.SupplierList();
+        orderaddedit.POHeaderOrderDate = DateTime.Now;
+        tax = await TaxService.TaxList();
+
+        if (POHeaderID == 0)
+        {
+            pagetitle = "Add an Order";
+        }
+        else
+        {
+            pagetitle = "Edit an Order";
+            orderaddedit = await POHeaderService.POHeader_GetOne(POHeaderID);
+            orderLinesByPOHeader = await POLineService.POLine_GetByPOHeader(POHeaderID);
+            orderLines = orderLinesByPOHeader.ToList(); //Convert from IEnumable to List
+            supplierEnabled = false;
+        }
+
+
+        //Get user if logged in and populate the 'Requested by' column
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            UserName = user.Identity.Name;
+        }
+        else
+        {
+            UserName = "The user is NOT authenticated.";
+        }
+
+        orderaddedit.POHeaderRequestedBy = UserName;
+
+        Toolbaritems.Add(new ItemModel() { Text = "Add", TooltipText = "Add a new order line", PrefixIcon = "e-add" });
+        Toolbaritems.Add(new ItemModel() { Text = "Edit", TooltipText = "Edit selected order line", PrefixIcon = "e-edit" });
+        Toolbaritems.Add(new ItemModel() { Text = "Delete ESTO", TooltipText = "Delete selected order line", PrefixIcon = "e-delete" });
+
+    }
+
+    private void OnChangeSupplier(Syncfusion.Blazor.DropDowns.ChangeEventArgs<int, Supplier> args)
+    {
+        this.orderaddedit.POHeaderSupplierAddress1 = args.ItemData.SupplierAddress1;
+        this.orderaddedit.POHeaderSupplierAddress2 = args.ItemData.SupplierAddress2;
+        this.orderaddedit.POHeaderSupplierAddress3 = args.ItemData.SupplierAddress3;
+        this.orderaddedit.POHeaderSupplierPostCode = args.ItemData.SupplierPostCode;
+        this.orderaddedit.POHeaderSupplierEmail = args.ItemData.SupplierEmail;
+    }
+
+
+    // Executes OnValidSubmit of EditForm above
+    protected async Task OrderSave()
+    {
+        if (orderaddedit.POHeaderSupplierID == 0)
+        {
+            WarningHeaderMessage = "Warning!";
+            WarningContentMessage = "Please Select a Supplier before saving the order.";
+            Warning.OpenDialog();
+            return;
+        }
+
+        if (orderLines.Count == 0)
+        {
+            ConfirmHeaderMessage = "Confirm Save!";
+            ConfirmContentMessage = "There are no order lines. Please confirm order should be saved.";
+            ConfirmSaveOrder.OpenDialog();
+        }
+        else
+        {
+            await OrderSaveProcess(true);
+        }
+    }
+
+
+
+    //Executes if user clicks the Cancel button.
+    void Cancel()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+
+    public async Task ToolbarClickHandler(Syncfusion.Blazor.Navigations.ClickEventArgs args)
+    {
+        //Actualizar productos para seleccionar solo aquellos productos de este proveedor (y productos sin proveedor asignado)
+        product = await 
+        ProductService.ProductListBySupplier(orderaddedit.POHeaderSupplierID);
+
+        if (args.Item.Text == "Add")
+        {
+            dialogHeaderText = "Add an Order Line";
+            //Code for adding goes here
+            //Check that a supplier has been selected from the drop-down list
+            if (orderaddedit.POHeaderSupplierID == 0)
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please Select a Supplier before adding order lines.";
+                Warning.OpenDialog();
+            }
+            else
+            {
+                addeditOrderLine = new POLine();          // Ensures a blank form when adding
+                addeditOrderLine.POLineNetPrice = 0;
+                addeditOrderLine.POLineTaxID = 0;
+                addeditOrderLine.POLineProductID = 0;
+                addeditOrderLine.POLineProductID = 0;
+                IsOrderLineDialogVisible = true;
+
+                //esto agregado
+                //await IsOrderLineDialogVisible.ShowAsync();
+
+            }
+        }
+        if (args.Item.Text == "Edit")
+        {
+            dialogHeaderText = "Edit an Order Line";
+            //code for edit goes here
+            //Check that an order line has been selected
+            if (selectedPOLineID == 0)
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please select an Order Line from the grid.";
+                Warning.OpenDialog();
+            }
+            else
+            {
+                //populate addeditOrderLine (temporary data set used for the editing process)
+                addeditOrderLine = orderLines.Where(x => x.POLineID == selectedPOLineID).FirstOrDefault();
+                StateHasChanged();
+                IsOrderLineDialogVisible = true;
+
+            }
+        }
+
+        if (args.Item.Text == "Delete")
+        {
+            //Code for adding goes here
+            if (selectedPOLineID == 0)
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please select an Order Line from the grid.";
+                Warning.OpenDialog();
+            }
+            else
+            {
+                ConfirmHeaderMessage = "Confirm Deletion";
+                ConfirmContentMessage = "Please confirm that this order line should be deleted.";
+                ConfirmDeletion.OpenDialog();
+            }
+        }
+    }
+    private void OnDeleteVisibleChanged(bool value)
+    {
+        DialogDeleteVisible = value;
+    }
+
+    private async Task OrderLineSave()
+    {
+        if (addeditOrderLine.POLineID == 0)
+        {
+            //Code to save order line goes here
+            //Check that a product has been selected from the drop-down list
+            if (addeditOrderLine.POLineProductCode == null || addeditOrderLine.POLineProductCode == "")
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please select a Product.";
+                Warning.OpenDialog();
+            }
+
+            //And check that a tax rate has been selected from the drop-down list
+            else if (addeditOrderLine.POLineTaxID == 0)
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please select a Tax Rate.";
+                Warning.OpenDialog();
+            }
+
+            else
+            {
+                POLineCalc();
+                tmpPOLineID = tmpPOLineID - 1;
+
+                orderLines.Add(new POLine
+                    {
+                        POLineID = tmpPOLineID,
+                        POLineHeaderID = 0,
+                        POLineProductID = addeditOrderLine.POLineProductID,
+                        POLineProductCode = addeditOrderLine.POLineProductCode,
+                        POLineProductDescription = addeditOrderLine.POLineProductDescription,
+                        POLineProductQuantity = addeditOrderLine.POLineProductQuantity,
+                        POLineProductUnitPrice = addeditOrderLine.POLineProductUnitPrice,
+                        POLineNetPrice = addeditOrderLine.POLineNetPrice,
+                        POLineTaxRate = addeditOrderLine.POLineTaxRate,
+                        POLineTaxAmount = addeditOrderLine.POLineTaxAmount,
+                        POLineGrossPrice = addeditOrderLine.POLineGrossPrice,
+                        POLineTaxID = addeditOrderLine.POLineTaxID              //Added 1.15
+                    });
+
+                OrderLinesGrid.Refresh();
+                StateHasChanged();                  //<-----  THIS IS ABSOLUTELY ESSENTIAL
+
+                //addeditOrderLine = new POLine();  //<-----  THIS gives errors (nulls)
+
+                addeditOrderLine.POLineProductID = 0;
+                addeditOrderLine.POLineProductCode = "";
+                addeditOrderLine.POLineProductDescription = "";
+                addeditOrderLine.POLineProductQuantity = 0;
+                addeditOrderLine.POLineProductUnitPrice = 0;
+                addeditOrderLine.POLineNetPrice = 0;
+                //addeditOrderLine.POLineTaxID = 0;
+                //addeditOrderLine.POLineTaxRate = 0;
+                addeditOrderLine.POLineTaxAmount = 0;
+                addeditOrderLine.POLineGrossPrice = 0;
+
+
+                //We now have order lines, so prevent user from changing the supplier
+                supplierEnabled = false;
+            }
+        }
+        else
+        {
+            //An order line is being edited
+            //Check that a product has been selected from the drop-down list
+            if (addeditOrderLine.POLineProductCode == null || addeditOrderLine.POLineProductCode == "")
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please select a Product.";
+                Warning.OpenDialog();
+            }
+            //And check that a tax rate has been selected from the drop-down list
+            else if (addeditOrderLine.POLineTaxID == 0)
+            {
+                WarningHeaderMessage = "Warning!";
+                WarningContentMessage = "Please select a Tax Rate.";
+                Warning.OpenDialog();
+            }
+            else
+            {
+                OrderLinesGrid.Refresh();
+                StateHasChanged();
+                await CloseDialog();                //No need to keep dialog open
+                selectedPOLineID = 0;
+            }
+        }
+    }
+
+    private async Task CloseDialog()
+    {
+        //esto comente y agrege lo siguiente
+        IsOrderLineDialogVisible = true;
+        //IsOrderLineDialogVisible.HideAsyc();
+        //Se intentö :(
+    }
+
+    private void OnChangeProduct(Syncfusion.Blazor.DropDowns.SelectEventArgs<Product> args)
+    {
+        this.addeditOrderLine.POLineProductCode = args.ItemData.ProductCode;
+        this.addeditOrderLine.POLineProductDescription = args.ItemData.ProductDescription;
+        this.addeditOrderLine.POLineProductUnitPrice = args.ItemData.ProductUnitPrice;
+        POLineCalc();
+    }
+
+    private void OnChangeTax(Syncfusion.Blazor.DropDowns.SelectEventArgs<Tax> args)
+    {
+        // int testTaxId = args.ItemData.TaxID;
+        this.addeditOrderLine.POLineTaxRate = args.ItemData.TaxRate;
+        POLineCalc();
+    }
+
+    private void POLineCalc()
+    {
+        addeditOrderLine.POLineNetPrice = addeditOrderLine.POLineProductUnitPrice * addeditOrderLine.POLineProductQuantity;
+        addeditOrderLine.POLineTaxAmount = addeditOrderLine.POLineNetPrice.Value * addeditOrderLine.POLineTaxRate;
+        addeditOrderLine.POLineGrossPrice = addeditOrderLine.POLineNetPrice.Value * (1 + addeditOrderLine.POLineTaxRate);
+    }
+
+    public void RowSelectHandler(RowSelectEventArgs<POLine> args)
+    {
+        //{args.Data} returns the current selected records.
+        selectedPOLineID = args.Data.POLineID;
+    }
+
+    
+    protected void ConfirmDelete(bool deleteConfirmed)
+    {
+        if (deleteConfirmed)
+        {
+            OrderLineDelete();
+            StateHasChanged();
+            selectedPOLineID = 0;
+        }
+    }
+   
+
+    private void OrderLineDelete()
+    {
+
+        if (selectedPOLineID > 0)
+        {
+            //Order line has already been saved to the database, and was present at start of this order edit
+            //Add to list of orders to be deleted when order is saved
+            OrderLinesToBeDeleted.Add(selectedPOLineID);
+        }
+
+        var itemToRemove = orderLines.Single(x => x.POLineID == selectedPOLineID);
+        orderLines.Remove(itemToRemove);
+        OrderLinesGrid.Refresh();
+    }
+
+    protected async Task OrderSaveProcess(bool saveConfirmed)
+    {
+        if (saveConfirmed)
+        {
+
+            if (POHeaderID == 0)
+            {
+                //Save the record - 1st - the POHeader
+
+                int HeaderID = await POHeaderService.POHeaderInsert(
+                               orderaddedit.POHeaderOrderDate,
+                               orderaddedit.POHeaderSupplierID,
+                               orderaddedit.POHeaderSupplierAddress1,
+                               orderaddedit.POHeaderSupplierAddress2,
+                               orderaddedit.POHeaderSupplierAddress3,
+                               orderaddedit.POHeaderSupplierPostCode,
+                               orderaddedit.POHeaderSupplierEmail,
+                               orderaddedit.POHeaderRequestedBy
+                               );
+
+                //2nd - the POLines
+                foreach (var individualPOLine in orderLines)
+                {
+                    individualPOLine.POLineHeaderID = HeaderID;
+                    bool Success = await POLineService.POLineInsert(individualPOLine);
+                }
+
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                //Order is being edited
+                //POHeader
+                bool Success = await POHeaderService.POHeaderUpdate(orderaddedit);
+
+                //POLines
+                foreach (var individualPOLine in orderLines)
+                {
+                    //If POLineHeaderID is positive it means it has been edited during the edit of this order
+                    if (individualPOLine.POLineID > 0)
+                    {
+                        Success = await POLineService.POLineUpdate(individualPOLine);
+                    }
+                    else
+                    //If POLineID is negative it means it has been added during the edit of this order
+                    {
+                        individualPOLine.POLineHeaderID = POHeaderID;
+                        Success = await POLineService.POLineInsert(individualPOLine);
+                    }
+                }
+
+                foreach (var individualPOLine in OrderLinesToBeDeleted)
+                {
+                    Success = await POLineService.POLineDeleteOne(individualPOLine);
+                }
+                //Clear the list of POLines to be deleted
+                OrderLinesToBeDeleted.Clear();
+
+                NavigationManager.NavigateTo("/");
+            }
+        }
+    }
+
+}
